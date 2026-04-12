@@ -188,6 +188,17 @@
                     </div>
                 </div>
 
+                <div class="section" style="margin-bottom: 1.5rem; background: #fff1f2; border: 1px solid #fecaca; border-radius: 4px; padding: 0.75rem;">
+                    <h4 style="color: #b91c1c;">Vulnerability Filter</h4>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:0.85rem; font-weight:800; color: #b91c1c; padding-right: 0.5rem;">Show Exceedance (100%+) Only</span>
+                        <label class="switch" style="flex-shrink: 0;">
+                            <input type="checkbox" id="exceedanceOnlyToggle" onchange="update()">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="section" style="margin-bottom: 1.5rem;">
                     <h4>Chart Style</h4>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
@@ -633,6 +644,7 @@
 
             // Re-fetch dynamic hazards after cleanup
             const showRange = document.getElementById('rangeToggle').checked;
+            const exceedOnly = document.getElementById('exceedanceOnlyToggle').checked;
 
             const sHaz = Array.from(document.querySelectorAll('.hazCheck:checked')).map(el => el.value);
 
@@ -647,6 +659,12 @@
                         const hVal = c.hazards[h];
                         sSur.forEach(s => {
                             const sVal = c.survey[s] || 0;
+                            
+                            const combinedVal = hVal + sVal;
+                            
+                            // Check the exceedance filter
+                            if (exceedOnly && combinedVal < 100) return;
+
                             let eX = null, eY = null;
                             if (c.is_region_benchmark && showRange) {
                                 if (c.hazards_min && c.hazards_min[h] !== undefined && c.hazards_max && c.hazards_max[h] !== undefined) {
@@ -765,39 +783,39 @@
 
             // Histogram
             const xGrid = []; const xLabels = [];
-            for(let i=0; i<=120; i+=5) { xGrid.push(i); xLabels.push(i % 10 === 0 ? i.toString() : ''); }
+            for(let i=0; i<=200; i+=10) { xGrid.push(i); xLabels.push(i.toString()); }
 
             const binSize = 5; const binCounts = {};
-            for(let i=0; i<=100; i+=binSize) binCounts[i] = 0;
+            for(let i=0; i<=200; i+=binSize) binCounts[i] = 0;
             points.forEach(p => {
                 const b = Math.floor(p.capacity / binSize) * binSize;
                 if(binCounts[b] !== undefined) binCounts[b]++;
             });
-            const bX = Object.keys(binCounts).map(Number);
+            const bX = Object.keys(binCounts).map(Number).sort((a,b) => a-b);
             const bY = bX.map(k => binCounts[k]);
             const bHover = bX.map(k => `<b>${k} - ${k+binSize}%</b><br>Simultaneous Operations: ${binCounts[k]}<extra></extra>`);
-
-            const maxY = Math.max(...bY) + 200;
-            const yGrid = []; const yLabels = [];
-            for (let i=0; i<=maxY; i+=100) {
-                yGrid.push(i);
-                yLabels.push(i % 200 === 0 ? i.toString() : '');
-            }
 
             Plotly.newPlot('histPlot', [{
                 x: bX, y: bY, type: 'bar', offset: 0, width: 5,
                 marker: { color: '#0f172a', opacity: 0.9 }, hovertemplate: bHover
             }], {
                 template: 'plotly_white', bargap: 0.1,
-                xaxis: { title: 'Military Capacity Percentage', tickmode: 'array', tickvals: xGrid, ticktext: xLabels, range: [-1, 105], showgrid: true, gridcolor: '#cbd5e1', gridwidth: 1 },
+                xaxis: { 
+                    title: 'Military Capacity Percentage', 
+                    tickmode: 'array', tickvals: xGrid, ticktext: xLabels, 
+                    range: [0, 105],
+                    minallowed: 0, // Prevent panning left of 0
+                    showgrid: true, gridcolor: '#cbd5e1', gridwidth: 1 
+                },
                 yaxis: { 
                     title: 'Number of Simultaneous Operations', 
-                    tickmode: 'array',
-                    tickvals: yGrid,
-                    ticktext: yLabels,
+                    range: [0, 100],
+                    dtick: 20,
                     showgrid: true, 
                     gridcolor: '#cbd5e1', 
-                    gridwidth: 1
+                    gridwidth: 1,
+                    zeroline: true,
+                    zerolinecolor: '#cbd5e1'
                 },
                 margin: { t: 20, l: 60, r: 20, b: 60 }
             }, {responsive:true});
